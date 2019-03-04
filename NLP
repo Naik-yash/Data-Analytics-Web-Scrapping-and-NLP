@@ -1,0 +1,151 @@
+"1. Define a function \"**tokenize**\" as follows:\n",
+    "   - takes a string as an input\n",
+    "   - converts the string into lowercase\n",
+    "   - tokenizes the lowercased string into tokens. Each token has at least two characters. A token **only contains letters (i.e. a-z or A-Z), \"-\" (hyphen), or \"_\" (underscore)**. Moreover, ** a token cannot starts or ends with \"-\" or \"_\" **. \n",
+    "   - removes stop words from the tokens (use English stop words list from NLTK)\n",
+    "   - returns the resulting token list as the output\n",
+    "   \n",
+    "2. Define a function \"**sentiment_analysis**\" as follows:\n",
+    "   - takes a string, a list of positive words, and a list of negative words as inputs. Assume the lists are read from positive-words.txt and negative-words.txt outside of this function.\n",
+    "   - tokenize the string using NLTK word tokenizer\n",
+    "   - counts positive words and negative words in the tokens using the positive/negative words lists. The final positive/negative words are defined as follows:\n",
+    "     - Positive words:\n",
+    "       * a positive word not preceded by a negation word (i.e. not, n't, no, cannot, neither, nor, too)\n",
+    "       * a negative word preceded by a negation word\n",
+    "     - Negative words:\n",
+    "       * a negative word not preceded by a negation word\n",
+    "       * a positive word preceded by a negation word\n",
+    "   - determines the sentiment of the string as follows:\n",
+    "     - 2: number of positive words > number of negative words\n",
+    "     - 1: number of positive words <= number of negative words\n",
+    "   - returns the sentiment \n",
+    "    \n",
+    "3. Define a function called **performance_evaluate** to evaluate the accuracy of the sentiment analysis in (2) as follows: \n",
+    "   - takes an input file (\"amazon_review_300.csv\"), a list of positive words, and a list of negative words as inputs. The input file has a list of reviews in the format of (label, title, review). Use label (either '2' or '1') and review columns (i.e. columns 1 and 3 only) here.\n",
+    "   - reads the input file to get reviews as a list of (label, reviews) tuples\n",
+    "   - for each review, predicts its sentiment using the function defined in (2), and compare the prediction with its label\n",
+    "   - returns the accuracy as the number of correct sentiment predictions/total reviews\n"
+    
+    
+    
+from nltk.corpus import stopwords
+from IPython.core.interactiveshell import InteractiveShell
+InteractiveShell.ast_node_interactivity = "all"
+import csv
+import re    # import re module
+import nltk
+
+
+
+def tokenize(text):
+    stop_words = stopwords.words('english')
+
+
+    text= text.lower()
+    
+    tokens=[]
+    pattern = r'^[a-z][a-z\-\_]*[^\-\_]$'
+    y = nltk.word_tokenize(text)
+    y = [a for a in y if a not in stop_words]
+#     print(y)
+    
+    for x in y:
+        if(re.search(pattern,x) and len(x) > 1):
+            tokens.append(x)
+    # write your code here
+    stop_words = stopwords.words('english')
+   
+    return tokens
+
+def sentiment_analysis(text, positive_words, negative_words):
+    text1 = nltk.word_tokenize(text)
+    negations=['not', 'too', 'n\'t', 'no', 'cannot', 'neither','nor']
+
+    
+    sentiment=None
+    positive_tokens=[]
+    negative_tokens=[]
+    for idx, token in enumerate(text1):
+        
+        if token in positive_words:
+            if idx>0:
+                if text1[idx-1] not in negations:
+                    positive_tokens.append(token)
+                else:
+                    negative_tokens.append(token)
+            else:
+                positive_tokens.append(token)      
+   
+        if token in negative_words:
+            if idx>0:
+                if text1[idx-1] in negations:
+                    positive_tokens.append(token)
+                else:
+                    negative_tokens.append(token)
+            else:
+                positive_tokens.append(token)
+          
+    
+    if len(positive_tokens)>len(negative_tokens):
+        sentiment=2
+    else:
+        sentiment=1
+    
+    
+    
+    return sentiment
+
+
+def performance_evaluate(input_file, positive_words, negative_words):
+    count=0
+    
+    accuracy=None
+    label=[]
+    review=[]
+    with open(input_file) as csvfile:
+        reader = csv.reader(csvfile)
+        
+        for row in reader:
+            x = row[0]
+            label.append(x)
+            
+            y= row[2]
+            review.append(y)
+        x1=tuple(label)
+        y1=tuple(review)
+        k=zip(x1,y1)
+        z=list(k)
+        
+        for index,attribute in z:
+            sentiment1=str(sentiment_analysis(attribute, positive_words, negative_words))
+            if sentiment1==index:
+                count+=1
+            else:
+                continue
+        accuracy=count/len(y1)
+        
+    
+    return accuracy
+
+if __name__ == "__main__":  
+    
+    text="this is a breath-taking ambitious movie; test text: abc_dcd abc_ dvr89w, abc-dcd -abc"
+
+    tokens=tokenize(text)
+    print("tokens:")
+    print(tokens)
+    
+    
+    with open("/Users/yash/Downloads/positive-words.txt",'r') as f:
+        positive_words=[line.strip() for line in f]
+        
+    with open("/Users/yash/Downloads/negative-words.txt",'r') as f:
+        negative_words=[line.strip() for line in f]
+        
+    print("\nsentiment")
+    sentiment=sentiment_analysis(text, positive_words, negative_words)
+    print(sentiment)
+    
+    accuracy=performance_evaluate("/Users/yash/Downloads/amazon_review_300.csv", positive_words, negative_words)
+    print("\naccuracy")
+    print(accuracy)
