@@ -1,0 +1,156 @@
+ collocations
+    "- Define a function top_collocation(tokens, K) to find top-K collocations in specific patterns in a document as follows:\n",
+    "  - takes a list of tokens and K as inputs\n",
+    "  - uses the following steps to find collocations:\n",
+    "    - POS tag each token\n",
+    "    - create bigrams\n",
+    "    - get frequency of each bigram (you can use nltk.FreqDist)\n",
+    "    - keep only bigrams matching the following patterns:\n",
+    "       - Adj + Noun: e.g. linear function\n",
+    "       - Noun + Noun: e.g. regression coefficient\n",
+    "  - returns top K collocations by frequency"
+    
+2. Document search by TF-IDF
+    "1. Modify tfidf and get_doc_tokens functions in Section 7.5 of your lecture notes to add “normalize” as a parameter. This parameter can take two possible values: None, \"stem\". The default value is None; if this parameter is set to \"stem\", stem each token. \n",
+    "2. In the main block, do the following:\n",
+    "    1. Read the dataset “amazon_review_300.csv”. This dataset has 3 columns: label, title, review. We’ll use “review” column only in this assignment.\n",
+    "    2. Calculate the tf-idf matrix for all the reviews using the modified functions tfidf function, each time with a different “normalize” value \n",
+    "    3. Take any review from your dataset, for each \"normalize\" option, find the top 5 documents most similar to the selected review, and print out these reviews\n",
+    "    4. Check if the top 5 reviews change under different \"normalize\" options. Which option do you think works better for the search? Write down your analysis as a print-out, or attach a txt file if you wish.\n",
+    "    5. (**bouns**) For each pair of similar reviews you find in (C), e.g. review x is similar to review y, find matched words under each \"normalize\" option. Print out top 10 words contributing most to their cosine similarity. (Hint: you need to modify the tfidf function to return the set of words as a vocabulary)"
+  
+  
+  
+def top_collocation(tokens, K):
+    result=[]
+    tagged_tokens= nltk.pos_tag(tokens)
+    tagged_tokens
+    bigrams=list(nltk.bigrams(tagged_tokens))
+    bigrams
+    phrases=[ (x[0],y[0]) for (x,y) in bigrams if (x[1].startswith('JJ') and y[1].startswith('NN')) or (x[1].startswith('NN') and y[1].startswith('NN'))]
+
+    print(len(phrases))
+    word_dist=nltk.FreqDist(phrases)
+    result = word_dist.most_common(K)
+#     finder = BigramCollocationFinder.from_words(\
+#     nltk.corpus.genesis.words(phrases))
+#     #finder.nbest(bigram_measures.pmi, 10)
+    
+    #word_fd = nltk.FreqDist(tokens)
+#     bigram_fd = nltk.FreqDist(bigrams)
+#     finder = BigramCollocationFinder(word_fd, bigram_fd)
+#     scored == finder.score_ngrams(bigram_measures.raw_freq)
+#     True
+    
+    return result
+
+
+# modify these two functions
+def get_doc_tokens(doc):
+    tokens=[token.strip() \
+            for token in nltk.word_tokenize(doc.lower()) \
+            if token.strip() not in stop_words and\
+               token.strip() not in string.punctuation]
+    
+   
+    
+    token_count={token:tokens.count(token) for token in set(tokens)}
+    return token_count
+ 
+
+def tfidf(docs,normalize):
+    # step 2. process all documents to get list of token list
+    docs_tokens={idx:get_doc_tokens(doc) \
+             for idx,doc in enumerate(docs)}
+
+    # step 3. get document-term matrix
+    dtm=pd.DataFrame.from_dict(docs_tokens, orient="index" )
+    dtm=dtm.fillna(0)
+      
+    # step 4. get normalized term frequency (tf) matrix        
+    tf=dtm.values
+    doc_len=tf.sum(axis=1)
+    tf=np.divide(tf.T, doc_len).T
+    
+    # step 5. get idf
+    df=np.where(tf>0,1,0)
+    #idf=np.log(np.divide(len(docs), \
+    #    np.sum(df, axis=0)))+1
+
+    smoothed_idf=np.log(np.divide(len(docs)+1, np.sum(df, axis=0)+1))+1    
+    smoothed_tf_idf=tf*smoothed_idf
+    
+    return smoothed_tf_idf
+    
+
+import nltk
+from nltk.collocations import *
+import csv
+import re, string
+from sklearn.preprocessing import normalize
+from nltk.corpus import stopwords
+import numpy as np  
+import pandas as pd
+import string
+from nltk.corpus import stopwords
+from scipy.spatial import distance
+if __name__ == "__main__":  
+    
+    stop_words = stopwords.words('english')
+    # test collocation
+    text=nltk.corpus.reuters.raw('test/14826')
+    tokens=nltk.word_tokenize(text.lower())
+    print(top_collocation(tokens, 10))
+    
+    #nltk.help.upenn_tagset()
+
+
+
+    
+    # load data
+    docs=[]
+    with open("/Users/yash/Downloads/amazon_review_300.csv","r") as f:
+        reader=csv.reader(f)
+        for line in reader:
+            docs.append(line[2])
+    
+    # Find similar documents -- No STEMMING
+
+    result_nonstem = tfidf(docs,None)
+    #print(result_nonstem)
+    #getting similarity
+    similarity_nonstem=1-distance.squareform (distance.pdist(result_nonstem, 'cosine'))
+    #print(similarity_nonstem)
+    #getting top 5 values
+    top5_nonstem = np.argsort(similarity_nonstem)[:,::-1][12,0:6]
+    print(top5_nonstem)
+    #to get actual comments
+    for idx, doc in enumerate(docs):
+        if idx in top5_nonstem:
+            print(idx,doc)
+    if normalize == None:
+        docs_tokens1={idx:get_doc_tokens(doc, None) for idx,doc in enumerate(docs)}
+    elif normalize == 'stem':
+        docs_tokens1={idx:get_doc_tokens(doc, 'stem') for idx,doc in enumerate(docs)}
+    
+
+  
+    result_stem = tfidf(docs,'stem')
+    #print(result_stem)
+    #getting similarity
+    similarity_stem=1-distance.squareform (distance.pdist(result_stem, 'cosine'))
+    #print(similarity_stem)    
+    np.argsort(similarity_stem)
+    #getting top 5 values
+    top5_stem = np.argsort(similarity_stem)[:,::-1][12,0:6]  
+    print(top5_stem)
+    #to get actual comments
+    for idx, doc in enumerate(docs):
+        if idx in top5_stem:
+            print(idx,doc)
+    if normalize== None:
+        tokens=tokens1
+    
+    elif normalize == 'stem':
+        porter_stemmer = PorterStemmer()
+        tokens = [porter_stemmer.stem(str(token)) for token in tokens1]
