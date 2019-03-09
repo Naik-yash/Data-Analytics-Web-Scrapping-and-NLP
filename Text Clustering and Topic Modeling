@@ -1,0 +1,204 @@
+Text Clustering and Topic Modeling
+This assignment needs dataset “ydata_3group.json”. This dataset contains samples in the format
+of (text, first_label, all_labels). For each sample, “text” element contains the text of the sample,
+“first_label” is the top class assigned to the sample, and “all_labels” is a list of classes assigned to
+the sample (including “first_label”). In total, there are three classes (labels): T1, T2, T3.
+Task 1: K-Mean clustering
+• Use KMeans to cluster the text into 3 clusters by cosine similarity
+• Apply majority vote rule to map clusters to ground-truth values in “first_label”
+• Calculate precision/recall/f-score
+• Based on cluster centroids/samples, give a meaningful name (instead of T1, T2, T3) to each
+cluster.
+Task 2: LDA (single-label)
+• Use LDA to cluster the text into 3 topics
+• For each sample, select only the top one topic (i.e. the topic with highest probability)
+• Apply majority vote rule to map topics to ground-truth values in “first_label” values
+• Calculate precision/recall/f-score and compare them with the results in Task 1.
+• Based on word probabilities in each topic, give the topic a meaningful name.
+Task 3 (Bonus): LDA (multiple-label)
+1) For LDA model in Task 2, use a threshold to assign topics to samples. Assign a topic to a
+sample only if the probability of the topic given the sample is greater than the threshold.
+2) After topics for each sample are determined, calculate precision/recall/f-score macro
+against “all_labels” values in the dataset.
+3) To determine the best threshold, vary the threshold from 0 to 1 with a step of 0.05, (i.e. 0,
+0.05, 0.1, 0.15, …, 1), assign topics for each sample, and then calculate precision/recall/fscore
+macro (i.e. apply steps (1)-(2)).
+4) Plot the results of precision/recall/f-score macro vs. different threshold values. Write your
+analysis about the results, and conclude what can be the best threshold value.
+
+from IPython.core.interactiveshell import InteractiveShell
+InteractiveShell.ast_node_interactivity = "all"
+import pickle
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn import metrics
+from sklearn.feature_extraction.text import TfidfVectorizer
+import pandas as pd
+import json
+
+with open('/Users/yash/Downloads/ydata_3group.json') as data_file:    
+    data = json.load(data_file)
+text,first_label,all_labels=zip(*data)
+
+
+text=list(text)
+first_label=list(first_label)
+all_labels=list(all_labels)
+tfidf_vect = TfidfVectorizer(stop_words="english",\
+                             min_df=5) 
+
+# generate tfidf matrix
+dtm= tfidf_vect.fit_transform(text)
+print (dtm.shape)
+
+
+from nltk.cluster import KMeansClusterer, cosine_distance
+
+# set number of clusters
+num_clusters=3
+
+# initialize clustering model
+# using cosine distance
+# clustering will repeat 10 times
+# each with different initial centroids
+clusterer = KMeansClusterer(num_clusters, \
+                            cosine_distance, repeats=10)
+
+# samples are assigned to cluster labels starting from 0
+clusters = clusterer.cluster(dtm.toarray(), \
+                             assign_clusters=True)
+
+#print the cluster labels of the first 5 samples
+print(clusters[0:5])
+
+from sklearn import metrics
+import numpy as np
+
+# clusterer.means() contains the centroids
+# each row is a cluster, and 
+# each column is a feature (word)
+centroids=np.array(clusterer.means())
+
+# argsort sort the matrix in ascending order 
+# and return locations of features before sorting
+# [:,::-1] reverse the order
+sorted_centroids = centroids.argsort()[:, ::-1] 
+
+# The mapping between feature (word)
+# index and feature (word) can be obtained by
+# the vectorizer's function get_feature_names()
+voc_lookup= tfidf_vect.get_feature_names()
+
+for i in range(num_clusters):
+    
+    # get words with top 20 tf-idf weight in the centroid
+    top_words=[voc_lookup[word_index] \
+               for word_index in sorted_centroids[i, :20]]
+    print("Cluster %d: %s " % (i, "; ".join(top_words)))
+    
+import pandas as pd
+
+df=pd.DataFrame(list(zip(clusters, first_label )), \
+                columns=['text','first_label'])
+df.head()
+pd.crosstab( index=df.text, columns=df.first_label)
+
+cluster_dict={0:'T3', 1:"T1",\
+              2:'T2'}
+###T3=vehicle accidents T1=natural disasters T2=Finance
+# Assign true class to cluster
+predicted_target=[cluster_dict[i] for i in clusters]
+
+print(metrics.classification_report\
+      (first_label, predicted_target))
+
+from sklearn.feature_extraction.text import CountVectorizer
+from sklearn.model_selection import train_test_split
+from sklearn.feature_extraction.text import CountVectorizer
+
+from sklearn.feature_extraction.text import CountVectorizer
+from sklearn.model_selection import train_test_split
+
+# LDA can only use raw term counts for LDA 
+tf_vectorizer = CountVectorizer(max_df=0.90, \
+                min_df=50, stop_words='english')
+tf = tf_vectorizer.fit_transform(text)
+
+# each feature is a word (bag of words)
+# get_feature_names() gives all words
+tf_feature_names = tf_vectorizer.get_feature_names()
+
+print(tf_feature_names[0:10])
+print(tf.shape)
+
+# split dataset into train (90%) and test sets (10%)
+# the test sets will be used to evaluate proplexity of topic modeling
+X_train, X_test = train_test_split(\
+                tf, test_size=0.1, random_state=0)
+
+from sklearn.decomposition import LatentDirichletAllocation
+
+num_topics = 3
+
+# Run LDA. For details, check
+# http://scikit-learn.org/stable/modules/generated/sklearn.decomposition.LatentDirichletAllocation.html#sklearn.decomposition.LatentDirichletAllocation.perplexity
+
+# max_iter control the number of iterations 
+# evaluate_every determines how often the perplexity is calculated
+# n_jobs is the number of parallel threads
+lda = LatentDirichletAllocation(n_components=num_topics, \
+                                max_iter=10,verbose=1,
+                                evaluate_every=1, n_jobs=1,
+                                random_state=0).fit(X_train)
+
+num_top_words=20
+
+# lda.components_ returns a KxN matrix
+# for word distribution in each topic.
+# Each row consists of 
+# probability (counts) of each word in the feature space
+
+for topic_idx, topic in enumerate(lda.components_):
+    print ("Topic %d:" % (topic_idx))
+    # print out top 20 words per topic 
+    words=[(tf_feature_names[i],topic[i]) for i in topic.argsort()[::-1][0:num_top_words]]
+    print(words)
+    print("\n")
+    
+    
+# Exercise 5.5. Assign documents to topic
+import numpy as np
+
+# Generate topic assignment of each document
+topic_assign=lda.transform(X_train)
+
+print(topic_assign[0:5])
+
+# set a probability threshold
+# the threshold determines precision/recall
+prob_threshold=0.25
+
+topics=np.copy(topic_assign)
+topics=np.where(topics>=prob_threshold, 1, 0)
+print(topics[0:5])
+
+
+
+perplexity=lda.perplexity(X_test)
+print(perplexity)
+
+topic_assign=lda.transform(tf)
+print(topic_assign[0:5])
+topics=np.copy(topic_assign)
+x1=np.argsort(topics)
+y=x1[:,::-1]
+y=[(row[1][0]) \
+          for row in enumerate(y)]
+df=pd.DataFrame(list(zip(first_label, y)), \
+                columns=['actual_class','Topic'])
+df.head()
+pd.crosstab( index=df.Topic, columns=df.actual_class)
+cluster_dict={0:'T3', 1:"T1",\
+              2:'T2'}
+predicted_target=[cluster_dict[i] for i in y]
+print(metrics.classification_report\
+      (first_label, predicted_target))
