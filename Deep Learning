@@ -1,0 +1,81 @@
+Task 1: Train a CNN classification model using the provided train.csv and test.csv such that the
+validation accuracy on test.csv is at least 75%. Your submission should include the following:
+• Code
+• Hyperparameter values, including max number of words for embedding layer, input
+sentence length, filters, the number of filters, batch size, and epoch etc.
+• Model training history
+• Accuracy, precision, recall on test.csv
+Task 2 (bonus): Train a CNN classification model with pre-trained word vectors from google
+using the provided train.csv and test.csv. Google word vectors can be found at
+https://drive.google.com/file/d/0B7XkCwpI5KDYNlNUTTlSS21pQmM/edit?usp=sharing . Use
+the same hyperparameters as in Task 1 and then compare the accuracy of different models. The
+accuracy should be improved slightly.
+
+
+from keras.layers import Embedding, Dense, Conv1D, MaxPooling1D, \
+Dropout, Activation, Input, Flatten, Concatenate
+from keras.models import Model
+from keras.regularizers import l2
+from keras.callbacks import EarlyStopping, ModelCheckpoint
+              
+def cnn_model(FILTER_SIZES, \
+              # filter sizes as a list
+              MAX_NB_WORDS, \
+              # total number of words
+              MAX_DOC_LEN, \
+              # max words in a doc
+              EMBEDDING_DIM=200, \
+              # word vector dimension
+              NUM_FILTERS=64, \
+              # number of filters for all size
+              DROP_OUT=0.5, \
+              # dropout rate
+              NUM_OUTPUT_UNITS=1, \
+              # number of output units
+              NUM_DENSE_UNITS=100,\
+              # number of units in dense layer
+              PRETRAINED_WORD_VECTOR=None,\
+              # Whether to use pretrained word vectors
+              LAM=0.0):            
+              # regularization coefficient
+    
+    main_input = Input(shape=(MAX_DOC_LEN,), \
+                       dtype='int32', name='main_input')
+    
+    if PRETRAINED_WORD_VECTOR is not None:
+        embed_1 = Embedding(input_dim=MAX_NB_WORDS+1, \
+                        output_dim=EMBEDDING_DIM, \
+                        input_length=MAX_DOC_LEN, \
+                        weights=[PRETRAINED_WORD_VECTOR],\
+                        trainable=False,\
+                        name='embedding')(main_input)
+    else:
+        embed_1 = Embedding(input_dim=MAX_NB_WORDS+1, \
+                        output_dim=EMBEDDING_DIM, \
+                        input_length=MAX_DOC_LEN, \
+                        name='embedding')(main_input)
+    # add convolution-pooling-flat block
+    conv_blocks = []
+    for f in FILTER_SIZES:
+        conv = Conv1D(filters=NUM_FILTERS, kernel_size=f, \
+                      activation='relu', name='conv_'+str(f))(embed_1)
+        conv = MaxPooling1D(MAX_DOC_LEN-f+1, name='max_'+str(f))(conv)
+        conv = Flatten(name='flat_'+str(f))(conv)
+        conv_blocks.append(conv)
+    
+    if len(conv_blocks)>1:
+        z=Concatenate(name='concate')(conv_blocks)
+    else:
+        z=conv_blocks[0]
+        
+    drop=Dropout(rate=DROP_OUT, name='dropout')(z)
+
+    dense = Dense(NUM_DENSE_UNITS, activation='relu',\
+                    kernel_regularizer=l2(LAM),name='dense')(drop)
+    preds = Dense(NUM_OUTPUT_UNITS, activation='sigmoid', name='output')(dense)
+    model = Model(inputs=main_input, outputs=preds)
+    
+    model.compile(loss="binary_crossentropy", \
+              optimizer="adam", metrics=["accuracy"]) 
+    
+    return model
